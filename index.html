@@ -8,16 +8,20 @@ th.st,td.st{position:sticky;left:0;background:#fff;z-index:2}
 .bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}button,select{min-height:36px;font-size:14px}
 @media (max-width:800px){body{margin:4px;font-size:14px}td.cell{min-width:34px;height:34px;font-size:13px}input.nm{width:92px}td.hid,th.hid{display:none}button{flex:1 1 40%}}
 .gear{min-height:32px;min-width:36px;flex:0 0 auto!important;padding:0 4px}#rm.on{background:#ffeb3b}
-@media print{#grid{overflow:visible}th.st,td.st{position:static}td.hid,th.hid{display:table-cell!important}.noprint{display:none}@page{size:A4 landscape;margin:8mm}body{font-size:9px}input{border:none}td,th{min-width:14px}}#dlg{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:9}#dlg>div{background:#fff;padding:14px;border-radius:8px;width:min(420px,94vw);max-height:90vh;overflow:auto}#dlg label{display:block;margin:8px 0 2px;font-weight:bold}#dlg input,#dlg select{width:100%;min-height:36px;font-size:15px;box-sizing:border-box}#dlg small{color:#555}</style></head><body>
+@media print{#grid{overflow:visible}th.st,td.st{position:static}td.hid,th.hid{display:table-cell!important}.noprint{display:none}@page{size:A4 landscape;margin:8mm}body{font-size:9px}input{border:none}td,th{min-width:14px}}.dlg{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:9}.dlg>div{background:#fff;padding:14px;border-radius:8px;width:min(420px,94vw);max-height:90vh;overflow:auto}.dlg label{display:block;margin:8px 0 2px;font-weight:bold}.dlg input:not([type=radio]),.dlg select{width:100%;min-height:36px;font-size:15px;box-sizing:border-box}.dlg small{color:#555}</style></head><body>
 <div class="bar noprint">Luna: <select id="mo"></select> An: <input id="yr" type="number" class="sm" style="width:70px">
-<button onclick="genereaza()" style="font-weight:bold">Generează program</button><small>Completează ⚙ Preferințe la fiecare angajat, apoi apasă Generează.</small><button onclick="addEmp()">+ Angajat</button>
+<button onclick="genereaza()" style="font-weight:bold">Generează program</button><small>Completează ⚙ Preferințe la fiecare angajat, apoi apasă Generează.</small><button onclick="addEmp()">+ Angajat</button><button onclick="$('imp').style.display='flex'">Importă angajați</button>
 <button onclick="exportX()">Export Excel</button><button onclick="window.print()">Printează / PDF</button><button onclick="golire()">Golește luna</button></div>
 <div class="bar noprint" style="margin:6px 0">Cod pentru selecție: <select id="code"><option>Z</option><option>N</option><option>CO</option><option>CB</option><option value="">(gol)</option></select>
 <button id="rm" onclick="rmode=!rmode;rstart=null;this.classList.toggle('on',rmode)">Mod selecție interval</button><button onclick="applySel()">Aplică pe selecție</button><button onclick="lockSel(true)">Blochează</button><button onclick="lockSel(false)">Deblochează</button>
 <small>Click = alege celula, Shift+click sau „Mod selecție interval” (atinge începutul, apoi sfârșitul) = interval pe același rând. Celulele blocate (subliniate) și CO/CB rămân neschimbate la generare.</small></div>
 <h3 id="title"></h3><div id="norma"></div><div id="grid"></div><div id="warn"></div>
 <p><small>Normă obligatorie: fiecare trebuie să aibă cel puțin norma (rotunjit în sus la multiplu de 12h, ex. 176→180), iar orele suplimentare se adaugă peste normă. CO/CB: se numără 8h doar în zilele lucrătoare (sâmbăta, duminica și sărbătorile din concediu = 0h). Concediu toată luna = exact norma, fără ture și fără ore suplimentare. Ipoteze: Z (zi) și N (noapte) = 12 ore. CO/CB = 8 ore doar în zilele lucrătoare (luni–vineri, fără sărbători legale). Normă = zile lucrătoare × 8h; pentru cei cu CO/CB, ținta generatorului scade cu 8h pe fiecare zi lucrătoare de concediu. Reguli obligatorii: maxim 2 ture consecutive (ZZ, NN sau ZN), apoi minim o zi liberă; niciodată Z după N. Se preferă alternanța (Z,Z,liber,N,N,liber,liber). Generator: mereu 2 pe noapte, 1 pe zi (2 când e nevoie pentru a atinge norma).</small></p>
-<div id="dlg" class="noprint"><div><h3 id="dt"></h3>
+<div id="imp" class="noprint dlg"><div><h3>Importă angajați</h3><small>Câte un angajat pe linie: nr. matricol (opțional) și numele. Ex: <br>101 Popescu Andrei<br>Ionescu Mihai</small>
+<textarea id="imptx" rows="10" style="width:100%;font-size:15px;box-sizing:border-box"></textarea>
+<label><input type="radio" name="impm" value="add" checked> Adaugă la lista existentă</label><label><input type="radio" name="impm" value="rep"> Înlocuiește lista existentă</label>
+<div class="bar" style="margin-top:10px"><button onclick="doImport()">Importă</button><button onclick="$('imp').style.display='none'">Renunță</button></div></div></div>
+<div id="dlg" class="noprint dlg"><div><h3 id="dt"></h3>
 <label>Concediu odihnă (CO) – zile</label><input id="pco" placeholder="ex: 10-14, 20"><label>Concediu boală (CB) – zile</label><input id="pcb" placeholder="ex: 3-5">
 <label>Zile libere dorite</label><input id="poff" placeholder="ex: 1, 8, 15"><small>Preferință (se respectă dacă se poate)</small>
 <label>Tură preferată</label><select id="psh"><option value="">oricare</option><option value="Z">Z – zi</option><option value="N">N – noapte</option></select>
@@ -33,6 +37,7 @@ const E=easterOrthodox(y);for(const off of [-2,0,1,49,50]){const t=new Date(E);t
 function monthInfo(y,m){const n=new Date(y,m,0).getDate(),H=holidays(y),days=[];let wd=0;for(let d=1;d<=n;d++){const w=new Date(Date.UTC(y,m-1,d)).getUTCDay(),key=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const we=w==0||w==6,hol=H.has(key),work=!we&&!hol;if(work)wd++;days.push({d,we,hol,work});}return{n,days,workDays:wd,norma:wd*8};}
 function hoursOf(code,day){if(code==='Z'||code==='N')return 12;if((code==='CO'||code==='CB')&&day.work)return 8;return 0;}
 function isFullLeave(row,info){const LV=x=>x==='CO'||x==='CB';return info.days.every((d,i)=>!d.work||LV(row[i]))&&info.days.some((d,i)=>LV(row[i]));}
+function parseEmps(txt){return String(txt||'').split(/\r?\n/).map(l=>l.trim().replace(/\s+/g,' ')).filter(l=>l).map(l=>{const m=l.match(/^(\d+)[\s.,;:\-\t]*(.*)$/);return m?{nr:m[1],nume:m[2].trim()}:{nr:'',nume:l}}).filter(e=>e.nume);}
 function totalHours(row,info){let t=0;for(let i=0;i<info.n;i++)t+=hoursOf(row[i]||'',info.days[i]);return t;}
 // emps: [{grid:[codes], locked:[bool]}]; returns {grids, warnings}
 function generate(emps,y,m){const info=monthInfo(y,m),n=info.n,W=[];
@@ -81,7 +86,7 @@ function generate(emps,y,m){const info=monthInfo(y,m),n=info.n,W=[];
   if(P.pattern==='48'){let k=0,l=-9;r.forEach((x,i)=>{if(x==='Z'||x==='N'){if(i-l==2)k++;l=i}});if(k)L.push(k+' pauze de doar o zi (preferă 12/48)');}
   if(L.length)R.push({p,msg:L.join('; ')});});
  return{grids:g,warnings:W,info,target,base,minH,full,report:R};}
-if(typeof module!=='undefined')module.exports={isFullLeave,easterOrthodox,holidays,monthInfo,generate,totalHours};
+if(typeof module!=='undefined')module.exports={parseEmps,isFullLeave,easterOrthodox,holidays,monthInfo,generate,totalHours};
 // ==/CORE==
 const LUNI=['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'],ZS=['D','L','Ma','Mi','J','V','S'];
 let S=JSON.parse(localStorage.getItem('pontaj')||'null')||{emps:[['101','Popescu Andrei'],['102','Ionescu Mihai'],['103','Dumitru Vasile'],['104','Stan Gheorghe'],['105','Marin Florin'],['106','Radu Cristian'],['107','Toma Adrian'],['108','Enache Paul']].map(([nr,nume])=>({nr,nume})),months:{}};
@@ -123,5 +128,8 @@ for(let i=0;i<n;i++){if(r.grid[i]==='CO'||r.grid[i]==='CB'||((r.grid[i]==='Z'||r
 parseD($('pco').value,n).forEach(d=>{r.grid[d-1]='CO';r.locked[d-1]=true});parseD($('pcb').value,n).forEach(d=>{r.grid[d-1]='CB';r.locked[d-1]=true});
 $('pfx').value.split(/[,;]+/).forEach(t=>{const m=t.trim().toUpperCase().match(/^(\d+)\s*:\s*(Z|N)$/);if(m&&+m[1]>=1&&+m[1]<=n){r.grid[m[1]-1]=m[2];r.locked[m[1]-1]=true}});
 r.pref={off:parseD($('poff').value,n),shift:$('psh').value,pattern:$('ppt').value,maxN:+$('pmx').value||0};save();dlg.style.display='none';render()}
+function doImport(){const L=parseEmps($('imptx').value);if(!L.length)return alert('Nu am găsit niciun nume.');const rep=document.querySelector('input[name=impm]:checked').value==='rep';
+if(rep){if(!confirm('Înlocuiești lista actuală ('+S.emps.length+' angajați) cu '+L.length+' angajați? Programele lunilor salvate se vor șterge.'))return;S.emps=L;S.months={}}else S.emps=S.emps.concat(L);
+save();$('imp').style.display='none';$('imptx').value='';render();alert('Importați: '+L.length+' angajați.')}
 render();
 </script></body></html>
