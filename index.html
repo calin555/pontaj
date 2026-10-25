@@ -15,8 +15,8 @@ th.st,td.st{position:sticky;left:0;background:#fff;z-index:2}
 <div class="bar noprint" style="margin:6px 0">Cod pentru selecție: <select id="code"><option>Z</option><option>N</option><option>CO</option><option>CB</option><option value="">(gol)</option></select>
 <button id="rm" onclick="rmode=!rmode;rstart=null;this.classList.toggle('on',rmode)">Mod selecție interval</button><button onclick="applySel()">Aplică pe selecție</button><button onclick="lockSel(true)">Blochează</button><button onclick="lockSel(false)">Deblochează</button>
 <small>Click = alege celula, Shift+click sau „Mod selecție interval” (atinge începutul, apoi sfârșitul) = interval pe același rând. Celulele blocate (subliniate) și CO/CB rămân neschimbate la generare.</small></div>
-<h3 id="title"></h3><div style="font-size:11px;color:#888">Versiune: <span id="ver">v2026-10-25.11</span></div><div id="norma"></div><div id="grid"></div><div id="warn"></div>
-<p><small>Normă obligatorie: Total ore = ore concediu (8h/zi lucrătoare) + ore ture; Total trebuie să fie cel puțin norma lunară întreagă (rotunjit în sus la multiplu de 12h, ex. 176→180), iar orele suplimentare se adaugă peste normă. CO/CB: se numără 8h doar în zilele lucrătoare (sâmbăta, duminica și sărbătorile din concediu = 0h). Sâmbăta/duminica/sărbătorile din interiorul concediului rămân goale (hașurate), dar persoana nu e programată atunci. Concediu toată luna = exact norma, fără ture și fără ore suplimentare. Ipoteze: Z (zi) și N (noapte) = 12 ore. CO/CB = 8 ore doar în zilele lucrătoare (luni–vineri, fără sărbători legale). Normă = zile lucrătoare × 8h; orele de concediu intră în Total, iar turele completează până la normă + ore suplimentare. Reguli: ciclu 12/24–12/48 per angajat: Z (07–19), N (19–07) a doua zi, apoi 2 zile libere. Niciodată Z după N; maxim 2 ture consecutive; ZZ și NN interzise (dacă norma/orele suplimentare nu se pot atinge, apare atenționare).</small></p>
+<h3 id="title"></h3><div style="font-size:11px;color:#888">Versiune: <span id="ver">v2026-10-25.12</span></div><div id="norma"></div><div id="grid"></div><div id="warn"></div>
+<p><small>Normă obligatorie: Total ore = ore concediu (8h/zi lucrătoare) + ore ture; Total trebuie să fie cel puțin norma lunară întreagă (rotunjit în sus la multiplu de 12h, ex. 176→180), iar orele suplimentare se adaugă peste normă. CO/CB: se numără 8h doar în zilele lucrătoare (sâmbăta, duminica și sărbătorile din concediu = 0h). Sâmbăta/duminica/sărbătorile din interiorul concediului rămân goale (hașurate), dar persoana nu e programată atunci. Concediu toată luna = exact norma, fără ture și fără ore suplimentare. Ipoteze: Z (zi) și N (noapte) = 12 ore. CO/CB = 8 ore doar în zilele lucrătoare (luni–vineri, fără sărbători legale). Normă = zile lucrătoare × 8h; orele de concediu intră în Total, iar turele completează până la normă + ore suplimentare. Reguli: ciclu 12/24–12/48 per angajat: Z (07–19), N (19–07) a doua zi, apoi 2 zile libere. Niciodată Z după N; maxim 2 ture consecutive; ZZ și NN interzise, folosite doar ca ultimă soluție pentru acoperirea turelor (notă portocalie) (dacă norma/orele suplimentare nu se pot atinge, apare atenționare).</small></p>
 <div id="implink" class="noprint dlg"><div><h3>Import angajați din link</h3><p><b id="impn"></b> angajați:</p><div id="impl" style="max-height:40vh;overflow:auto;border:1px solid #ccc;padding:6px"></div><p>Înlocuiești lista actuală cu aceștia? Programele salvate se vor șterge.</p>
 <div class="bar"><button id="impok" onclick="acceptLinkImport()" style="font-weight:bold">Da, înlocuiește</button><button onclick="pendImp=null;$('implink').style.display='none'">Renunță</button></div></div></div>
 <div id="imp" class="noprint dlg"><div><h3>Importă angajați</h3><small>Câte un angajat pe linie: nr. matricol (opțional) și numele. Ex: <br>101 Popescu Andrei<br>Ionescu Mihai</small>
@@ -56,8 +56,8 @@ function generate(emps,y,m){const info=monthInfo(y,m),n=info.n,W=[];emps=emps.ma
  const target=g.map((_,p)=>full[p]?leaveH[p]:leaveH[p]+Math.ceil(Math.max(0,info.norma-leaveH[p]+supOf(p))/12)*12);
  const hrs=p=>totalHours(g[p],info);const last=g.map(()=>-9);
  const W2=x=>x==='Z'||x==='N';
- const ok=(p,i,s,strict)=>{const r=g[p];if(full[p]||r[i])return false;const prev=i>0?r[i-1]:'',next=i+1<n?r[i+1]:'';if(s==='Z'&&prev==='N')return false;if(s==='N'&&next==='Z')return false;
-  if(prev===s||next===s)return false; // ZZ/NN interzis
+ const ok=(p,i,s,strict,relax)=>{const r=g[p];if(full[p]||r[i])return false;const prev=i>0?r[i-1]:'',next=i+1<n?r[i+1]:'';if(s==='Z'&&prev==='N')return false;if(s==='N'&&next==='Z')return false;
+  if(!relax&&(prev===s||next===s))return false; // ZZ/NN interzis
   let a=0,b=0;for(let k=i-1;k>=0&&W2(r[k]);k--)a++;for(let k=i+1;k<n&&W2(r[k]);k++)b++;return a+1+b<=2;};
  const pr=p=>emps[p].pref||{};const nN=p=>g[p].filter(x=>x==='N').length;
  const free=(p,i)=>i<0||!W2(g[p][i]);
@@ -70,10 +70,13 @@ function generate(emps,y,m){const info=monthInfo(y,m),n=info.n,W=[];emps=emps.ma
    if(s==='N'){const c2=c.filter(p=>!(pr(p).maxN>0&&nN(p)>=pr(p).maxN));if(c2.length)c=c2;}
    if(c.length){c.sort((a,b)=>score(b,i,s)-score(a,i,s));if(!strict)relaxed++;return c[0];}
    if(cond)return undefined;}return undefined;};
+ // 0) tight days first (few people available): reserve coverage there
+ for(let i=0;i<n;i++){const av=g.map((_,p)=>p).filter(p=>!full[p]&&(!g[p][i]||W2(g[p][i])));if(av.length>4)continue;
+  for(const s of ['Z','N']){const need=s==='N'?2:1;for(const relax of [false,true]){while(g.filter(r=>r[i]===s).length<need){const p=av.filter(p=>ok(p,i,s,true,relax)).sort((a,b)=>hrs(a)-hrs(b))[0];if(p===undefined)break;g[p][i]=s;}}}}
  // 1) cycle Z,N,liber,liber
  for(let i=0;i<n;i++){
   let nn=g.filter(r=>r[i]==='N').length;
-  while(nn<2){const p=pick(i,'N');if(p===undefined){W.push(`Ziua ${i+1}: nu sunt destui oameni pentru tura de noapte (${nn}/2).`);break;}g[p][i]='N';nn++;}
+  while(nn<2){const p=pick(i,'N');if(p===undefined)break;g[p][i]='N';nn++;}
   if(nn>2)W.push(`Ziua ${i+1}: ${nn} persoane pe noapte (blocate manual).`);
   let nZ=g.filter(r=>r[i]==='Z').length;
   if(nZ<1){const p=pick(i,'Z');if(p!==undefined){g[p][i]="Z";nZ++;}}
@@ -99,16 +102,25 @@ function generate(emps,y,m){const info=monthInfo(y,m),n=info.n,W=[];emps=emps.ma
      let j=-1;for(let k=0;k<n;k++){if(k!==i&&g.filter(r=>r[k]==='Z').length<2&&ok(q,k,'Z',true)){g[q][k]='Z';if(ok(p,i,s,true)){j=k;break;}g[q][k]='';}}
      if(j>=0){g[p][i]=s;done=true;break;}g[q][i]=s;}}if(done)break;}
    if(done){prog=true;break;}}}}
- // 4) repair days without Z: free a neighbour shift of p and hand it to someone else
- for(let i=0;i<n;i++){if(g.some(r=>r[i]==='Z'))continue;let fixedOk=false;
-  for(let p=0;p<g.length&&!fixedOk;p++){if(full[p]||g[p][i])continue;
-   for(const j of [i-1,i+1,i-2,i+2]){if(j<0||j>=n||fixed[p][j]||!W2(g[p][j]))continue;const s=g[p][j];g[p][j]='';
-    if(ok(p,i,'Z',true)){g[p][i]='Z';const cand=g.map((_,q)=>q).filter(q=>q!==p&&ok(q,j,s,true)).sort((a,b)=>(hrs(a)-target[a])-(hrs(b)-target[b]));
-     if(cand.length){g[cand[0]][j]=s;fixedOk=true;break;}
-     if(s==='Z'&&g.some(r=>r[j]==='Z')){fixedOk=true;break;}g[p][i]='';}
-    g[p][j]=s;}}
-  if(!fixedOk)W.push(`Ziua ${i+1}: imposibil de acoperit tura de zi fără ZZ/NN sau Z după N (prea puțini oameni disponibili).`);}
- g.forEach((r,p)=>{let k=0;for(let i=1;i<n;i++)if((r[i]==='Z'&&r[i-1]==='Z')||(r[i]==='N'&&r[i-1]==='N'))k++;if(k)W.push(`Ang. ${p+1}: ${k} perechi ZZ/NN din celule blocate manual.`);});
+ // 4) coverage repair: direct fill, then free a neighbour shift and re-cover it; ZZ/NN only as last resort
+ const EX=[],exc=g.map(()=>0);const cnt=(i,s)=>g.filter(r=>r[i]===s).length;const NEED={N:2,Z:1};
+ const tryFill=(i,s,relax)=>{const order=g.map((_,p)=>p).filter(p=>!full[p]&&!g[p][i]).sort((a,b)=>(exc[a]-exc[b])||(hrs(a)-hrs(b)));
+  for(const p of order)if(ok(p,i,s,true,relax)){g[p][i]=s;return p;}
+  for(const p of order){for(const j of [i-1,i+1,i-2,i+2]){if(j<0||j>=n||fixed[p][j]||!W2(g[p][j]))continue;const s2=g[p][j];g[p][j]='';
+    if(ok(p,i,s,true,relax)){g[p][i]=s;if(cnt(j,s2)>=NEED[s2])return p;
+     const q=g.map((_,q)=>q).filter(q=>q!==p&&ok(q,j,s2,true,false))[0]??g.map((_,q)=>q).filter(q=>q!==p&&ok(q,j,s2,true,relax))[0];
+     if(q!==undefined){g[q][j]=s2;return p;}g[p][i]='';}
+    g[p][j]=s2;}}
+  for(let p=0;p<g.length;p++){const t=g[p][i];if(!W2(t)||t===s||fixed[p][i])continue;g[p][i]='';
+   if(ok(p,i,s,true,relax)){g[p][i]=s;const q=g.map((_,q)=>q).filter(q=>q!==p&&ok(q,i,t,true,false))[0]??g.map((_,q)=>q).filter(q=>q!==p&&ok(q,i,t,true,relax))[0];
+    if(q!==undefined){g[q][i]=t;return p;}}g[p][i]=t;}
+  return undefined;};
+ for(let i=0;i<n;i++)for(const s of ['N','Z']){while(cnt(i,s)<NEED[s]){if(tryFill(i,s,false)!==undefined)continue;
+   const before=g.map(r=>r.slice());const p=tryFill(i,s,true);
+   if(p===undefined){W.push(`Ziua ${i+1}: imposibil de acoperit tura de ${s==='N'?'noapte':'zi'} (${cnt(i,s)}/${NEED[s]}) chiar și cu ZZ/NN – prea puțini oameni disponibili.`);break;}
+   g.forEach((r,q)=>{for(let k=1;k<n;k++)if(W2(r[k])&&r[k]===r[k-1])exc[q]++;});}}
+ g.forEach((r,q)=>{for(let k=1;k<n;k++)if(W2(r[k])&&r[k]===r[k-1]&&!(fixed[q][k]&&fixed[q][k-1]))EX.push({day:k+1,p:q,code:r[k]+r[k]});});
+ g.forEach((r,p)=>{let k=0;for(let i=1;i<n;i++)if((r[i]==='Z'&&r[i-1]==='Z')||(r[i]==='N'&&r[i-1]==='N'))k++;if(k){const ex=EX.filter(x=>x.p===p).length;if(k>ex)W.push(`Ang. ${p+1}: ${k-ex} perechi ZZ/NN din celule blocate manual.`)};});
  g.forEach((r,p)=>{let run=0;for(let i=0;i<n;i++){run=W2(r[i])?run+1:0;if(run===3)W.push(`Ang. ${p+1}: mai mult de 2 ture consecutive începând cu ziua ${i-1} (celule blocate).`);}for(let i=1;i<n;i++)if(r[i-1]==='N'&&r[i]==='Z')W.push(`Ang. ${p+1}: Z după N în ziua ${i+1} (blocat manual).`);
   const t=totalHours(r,info);if(full[p])return;if(t<base[p])W.push(`Ang. ${p+1}: NORMA NEACOPERITĂ – ${t}h din ${base[p]}h (lipsesc ${base[p]-t}h). Prea puțini oameni / ture disponibile.`);
   else if(t<base[p]+supOf(p))W.push(`Ang. ${p+1}: ore suplimentare incomplete – ${t}h din ${base[p]+supOf(p)}h (lipsesc ${base[p]+supOf(p)-t}h).`);});
@@ -117,7 +129,7 @@ function generate(emps,y,m){const info=monthInfo(y,m),n=info.n,W=[];emps=emps.ma
   if(P.maxN>0&&nN(p)>P.maxN)L.push('nopți '+nN(p)+' > max '+P.maxN);
   if(P.pattern==='48'){let k=0,l=-9;r.forEach((x,i)=>{if(x==='Z'||x==='N'){if(i-l==2)k++;l=i}});if(k)L.push(k+' pauze de doar o zi (preferă 12/48)');}
   if(L.length)R.push({p,msg:L.join('; ')});});
- return{grids:g,warnings:W,info,target,base,minH,full,leaveH,report:R};}
+ return{grids:g,warnings:W,info,target,base,minH,full,leaveH,report:R,exceptions:EX};}
 if(typeof module!=='undefined')module.exports={normLeave,parseEmps,isFullLeave,easterOrthodox,holidays,monthInfo,generate,totalHours};
 // ==/CORE==
 const LUNI=['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'],ZS=['D','L','Ma','Mi','J','V','S'];
@@ -143,7 +155,7 @@ function rng(){return sel?[...Array(Math.abs(sel.b-sel.a)+1)].map((_,k)=>Math.mi
 function applySel(){if(!sel)return alert('Selectează celule');const c=document.getElementById('code').value,r=M()[sel.p];rng().forEach(i=>{r.grid[i]=c;r.locked[i]=!!c});normLeave(r.grid,monthInfo(+yr.value,+mo.value));save();render()}
 function lockSel(v){if(!sel)return;const r=M()[sel.p];rng().forEach(i=>r.locked[i]=v);save();render()}
 function genereaza(){const o=M(),lk=S.emps.reduce((s,_,p)=>s+(o[p].grid||[]).filter((x,i)=>(x==='Z'||x==='N')&&o[p].locked[i]).length,0),res=generate(S.emps.map((_,p)=>o[p]),+yr.value,+mo.value);res.grids.forEach((g,p)=>o[p].grid=g);save();render();const rep=res.report.map(x=>S.emps[x.p].nume+': '+x.msg);
-document.getElementById('warn').innerHTML=res.warnings.length?'<b>Atenționări:</b><br>'+res.warnings.map(w=>w.replace(/Ang\. (\d+)/,(_,n)=>S.emps[n-1].nume)).join('<br>'):'<span style="color:green;font-weight:bold">Program generat; toate regulile obligatorii respectate.</span>';if(lk)document.getElementById('warn').innerHTML+='<br><b>Notă:</b> '+lk+' celule Z/N sunt blocate manual și nu au fost schimbate (folosește Deblochează).';if(rep.length)document.getElementById('warn').innerHTML+='<br><b style="color:#a60">Preferințe nerespectate:</b><br><span style="color:#a60">'+rep.join('<br>')+'</span>'}
+document.getElementById('warn').innerHTML=res.warnings.length?'<b>Atenționări:</b><br>'+res.warnings.map(w=>w.replace(/Ang\. (\d+)/,(_,n)=>S.emps[n-1].nume)).join('<br>'):'<span style="color:green;font-weight:bold">Program generat; toate regulile obligatorii respectate.</span>';if(res.exceptions&&res.exceptions.length)document.getElementById('warn').innerHTML+='<br><span style="color:#e65100">'+res.exceptions.map(x=>'Ziua '+x.day+': '+x.code+' folosit pentru acoperire – '+S.emps[x.p].nume).join('<br>')+'</span>';if(lk)document.getElementById('warn').innerHTML+='<br><b>Notă:</b> '+lk+' celule Z/N sunt blocate manual și nu au fost schimbate (folosește Deblochează).';if(rep.length)document.getElementById('warn').innerHTML+='<br><b style="color:#a60">Preferințe nerespectate:</b><br><span style="color:#a60">'+rep.join('<br>')+'</span>'}
 function golire(){if(confirm('Ștergi programul lunii?')){delete S.months[key()];save();render()}}
 function addEmp(){S.emps.push({nr:'',nume:'Angajat nou'});save();render()}
 function delEmp(p){if(!confirm('Ștergi '+S.emps[p].nume+'?'))return;S.emps.splice(p,1);for(const k in S.months){const o=S.months[k],n={};Object.keys(o).forEach(q=>{q=+q;if(q<p)n[q]=o[q];else if(q>p)n[q-1]=o[q]});S.months[k]=n}save();render()}
