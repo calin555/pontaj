@@ -16,7 +16,7 @@ th.st,td.st{position:sticky;left:0;background:#fff;z-index:2}
 <button id="rm" onclick="rmode=!rmode;rstart=null;this.classList.toggle('on',rmode)">Mod selecție interval</button><button onclick="applySel()">Aplică pe selecție</button><button onclick="lockSel(true)">Blochează</button><button onclick="lockSel(false)">Deblochează</button>
 <small>Click = alege celula, Shift+click sau „Mod selecție interval” (atinge începutul, apoi sfârșitul) = interval pe același rând. Celulele blocate (subliniate) și CO/CB rămân neschimbate la generare.</small></div>
 <h3 id="title"></h3><div id="norma"></div><div id="grid"></div><div id="warn"></div>
-<p><small>Normă obligatorie: fiecare trebuie să aibă cel puțin norma (rotunjit în sus la multiplu de 12h, ex. 176→180), iar orele suplimentare se adaugă peste normă. Ipoteze: Z (zi) și N (noapte) = 12 ore. CO/CB = 8 ore doar în zilele lucrătoare (luni–vineri, fără sărbători legale). Normă = zile lucrătoare × 8h; pentru cei cu CO/CB, ținta generatorului scade cu 8h pe fiecare zi lucrătoare de concediu. Reguli obligatorii: maxim 2 ture consecutive (ZZ, NN sau ZN), apoi minim o zi liberă; niciodată Z după N. Se preferă alternanța (Z,Z,liber,N,N,liber,liber). Generator: mereu 2 pe noapte, 1 pe zi (2 când e nevoie pentru a atinge norma).</small></p>
+<p><small>Normă obligatorie: fiecare trebuie să aibă cel puțin norma (rotunjit în sus la multiplu de 12h, ex. 176→180), iar orele suplimentare se adaugă peste normă. CO/CB: se numără 8h doar în zilele lucrătoare (sâmbăta, duminica și sărbătorile din concediu = 0h). Concediu toată luna = exact norma, fără ture și fără ore suplimentare. Ipoteze: Z (zi) și N (noapte) = 12 ore. CO/CB = 8 ore doar în zilele lucrătoare (luni–vineri, fără sărbători legale). Normă = zile lucrătoare × 8h; pentru cei cu CO/CB, ținta generatorului scade cu 8h pe fiecare zi lucrătoare de concediu. Reguli obligatorii: maxim 2 ture consecutive (ZZ, NN sau ZN), apoi minim o zi liberă; niciodată Z după N. Se preferă alternanța (Z,Z,liber,N,N,liber,liber). Generator: mereu 2 pe noapte, 1 pe zi (2 când e nevoie pentru a atinge norma).</small></p>
 <div id="dlg" class="noprint"><div><h3 id="dt"></h3>
 <label>Concediu odihnă (CO) – zile</label><input id="pco" placeholder="ex: 10-14, 20"><label>Concediu boală (CB) – zile</label><input id="pcb" placeholder="ex: 3-5">
 <label>Zile libere dorite</label><input id="poff" placeholder="ex: 1, 8, 15"><small>Preferință (se respectă dacă se poate)</small>
@@ -32,15 +32,17 @@ function holidays(y){const k=(m,d)=>`${y}-${String(m).padStart(2,'0')}-${String(
 const E=easterOrthodox(y);for(const off of [-2,0,1,49,50]){const t=new Date(E);t.setUTCDate(t.getUTCDate()+off);s.add(t.toISOString().slice(0,10));}return s;}
 function monthInfo(y,m){const n=new Date(y,m,0).getDate(),H=holidays(y),days=[];let wd=0;for(let d=1;d<=n;d++){const w=new Date(Date.UTC(y,m-1,d)).getUTCDay(),key=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const we=w==0||w==6,hol=H.has(key),work=!we&&!hol;if(work)wd++;days.push({d,we,hol,work});}return{n,days,workDays:wd,norma:wd*8};}
 function hoursOf(code,day){if(code==='Z'||code==='N')return 12;if((code==='CO'||code==='CB')&&day.work)return 8;return 0;}
+function isFullLeave(row,info){const LV=x=>x==='CO'||x==='CB';return info.days.every((d,i)=>!d.work||LV(row[i]))&&info.days.some((d,i)=>LV(row[i]));}
 function totalHours(row,info){let t=0;for(let i=0;i<info.n;i++)t+=hoursOf(row[i]||'',info.days[i]);return t;}
 // emps: [{grid:[codes], locked:[bool]}]; returns {grids, warnings}
 function generate(emps,y,m){const info=monthInfo(y,m),n=info.n,W=[];
  const g=emps.map(e=>{const r=[];for(let i=0;i<n;i++){const c=(e.grid&&e.grid[i])||'';r.push((e.locked&&e.locked[i])||c==='CO'||c==='CB'?c:'');}return r;});
  const fixed=emps.map((e,p)=>g[p].map((c,i)=>!!((e.locked&&e.locked[i])||c==='CO'||c==='CB')));
  const base=g.map(r=>{let t=info.norma;r.forEach((c,i)=>{if((c==='CO'||c==='CB')&&info.days[i].work)t-=8;});return t;});
- const minH=base.map(t=>Math.ceil(t/12)*12);const target=base.map((t,p)=>Math.ceil((t+(+emps[p].sup||0))/12)*12);
+ const LV=x=>x==='CO'||x==='CB';const full=g.map(r=>info.days.every((d,i)=>!d.work||LV(r[i]))&&r.some(LV));const supOf=p=>full[p]?0:(+emps[p].sup||0);
+ const minH=base.map(t=>Math.ceil(t/12)*12);const target=base.map((t,p)=>Math.ceil((t+supOf(p))/12)*12);
  const hrs=p=>totalHours(g[p],info);const last=g.map(()=>-9);
- const W2=x=>x==='Z'||x==='N';const ok=(p,i,s)=>{const r=g[p];if(r[i])return false;const prev=i>0?r[i-1]:'',next=i+1<n?r[i+1]:'';if(s==='Z'&&prev==='N')return false;if(s==='N'&&next==='Z')return false;
+ const W2=x=>x==='Z'||x==='N';const ok=(p,i,s)=>{const r=g[p];if(full[p]||r[i])return false;const prev=i>0?r[i-1]:'',next=i+1<n?r[i+1]:'';if(s==='Z'&&prev==='N')return false;if(s==='N'&&next==='Z')return false;
   let a=0,b=0;for(let k=i-1;k>=0&&W2(r[k]);k--)a++;for(let k=i+1;k<n&&W2(r[k]);k++)b++;return a+1+b<=2;};
  const pr=p=>emps[p].pref||{};const nN=p=>g[p].filter(x=>x==='N').length;
  const score=(p,i,s)=>{const rest=i-last[p],P=pr(p);let v=2*(target[p]-hrs(p))+(rest>=3?6:rest==2?0:-6);const pv=i>0?g[p][i-1]:'';if(pv===s)v+=8;
@@ -71,15 +73,15 @@ function generate(emps,y,m){const info=monthInfo(y,m),n=info.n,W=[];
     if(q!==undefined){g[q][i]='';g[p][i]='N';done=true;}}
    if(done){prog=true;break;}}}}
  g.forEach((r,p)=>{let run=0;for(let i=0;i<n;i++){run=W2(r[i])?run+1:0;if(run===3)W.push(`Ang. ${p+1}: mai mult de 2 ture consecutive începând cu ziua ${i-1} (celule blocate).`);}for(let i=1;i<n;i++)if(r[i-1]==='N'&&r[i]==='Z')W.push(`Ang. ${p+1}: Z după N în ziua ${i+1} (blocat manual).`);
-  const t=totalHours(r,info);if(t<base[p])W.push(`Ang. ${p+1}: NORMA NEACOPERITĂ – ${t}h din ${base[p]}h (lipsesc ${base[p]-t}h). Prea puțini oameni / ture disponibile.`);
-  else if(t<base[p]+(+emps[p].sup||0))W.push(`Ang. ${p+1}: ore suplimentare incomplete – ${t}h din ${base[p]+(+emps[p].sup||0)}h (lipsesc ${base[p]+(+emps[p].sup||0)-t}h).`);});
+  const t=totalHours(r,info);if(full[p])return;if(t<base[p])W.push(`Ang. ${p+1}: NORMA NEACOPERITĂ – ${t}h din ${base[p]}h (lipsesc ${base[p]-t}h). Prea puțini oameni / ture disponibile.`);
+  else if(t<base[p]+supOf(p))W.push(`Ang. ${p+1}: ore suplimentare incomplete – ${t}h din ${base[p]+supOf(p)}h (lipsesc ${base[p]+supOf(p)-t}h).`);});
  const R=[];g.forEach((r,p)=>{const P=pr(p),L=[];const od=(P.off||[]).filter(d=>d>=1&&d<=n&&(r[d-1]==='Z'||r[d-1]==='N')&&!fixed[p][d-1]);if(od.length)L.push('lucrează în zilele libere dorite: '+od.join(', '));
   if(P.shift){const o=r.filter((x,i)=>(x==='Z'||x==='N')&&x!==P.shift&&!fixed[p][i]).length;if(o)L.push(o+' ture '+(P.shift==='Z'?'N':'Z')+' (preferă '+P.shift+')');}
   if(P.maxN>0&&nN(p)>P.maxN)L.push('nopți '+nN(p)+' > max '+P.maxN);
   if(P.pattern==='48'){let k=0,l=-9;r.forEach((x,i)=>{if(x==='Z'||x==='N'){if(i-l==2)k++;l=i}});if(k)L.push(k+' pauze de doar o zi (preferă 12/48)');}
   if(L.length)R.push({p,msg:L.join('; ')});});
- return{grids:g,warnings:W,info,target,base,minH,report:R};}
-if(typeof module!=='undefined')module.exports={easterOrthodox,holidays,monthInfo,generate,totalHours};
+ return{grids:g,warnings:W,info,target,base,minH,full,report:R};}
+if(typeof module!=='undefined')module.exports={isFullLeave,easterOrthodox,holidays,monthInfo,generate,totalHours};
 // ==/CORE==
 const LUNI=['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'],ZS=['D','L','Ma','Mi','J','V','S'];
 let S=JSON.parse(localStorage.getItem('pontaj')||'null')||{emps:[['101','Popescu Andrei'],['102','Ionescu Mihai'],['103','Dumitru Vasile'],['104','Stan Gheorghe'],['105','Marin Florin'],['106','Radu Cristian'],['107','Toma Adrian'],['108','Enache Paul']].map(([nr,nume])=>({nr,nume})),months:{}};
@@ -94,7 +96,7 @@ document.getElementById('norma').innerHTML=`Zile lucrătoare: <b>${info.workDays
 let h='<table><tr><th class=hid>Nr.<br>crt</th><th class=hid>Nr. matricol</th><th class=st>Nume și prenume</th>'+info.days.map(d=>`<th class="${d.work?'':'we'}">${d.d}<br>${ZS[new Date(y,m-1,d.d).getDay()]}</th>`).join('')+'<th>Total ore</th><th>Normă</th><th>Ore supl.</th><th>Dif.</th><th class="noprint"></th></tr>';
 S.emps.forEach((e,p)=>{const r=o[p];h+=`<tr><td class=hid>${p+1}</td><td class=hid><input class="sm" value="${e.nr}" onchange="S.emps[${p}].nr=this.value;save()"></td><td class=st><div style="display:flex;align-items:center;gap:2px"><input class="nm" value="${e.nume}" onchange="S.emps[${p}].nume=this.value;save()"><button title="Preferințe" onclick="openPref(${p})" class="gear">⚙</button></div></td>`;
 info.days.forEach((d,i)=>{const c=r.grid[i]||'';const s=sel&&sel.p==p&&i>=Math.min(sel.a,sel.b)&&i<=Math.max(sel.a,sel.b);h+=`<td class="cell ${d.work?'':'we'} ${c} ${r.locked[i]?'lock':''} ${s?'sel':''}" onclick="clk(event,${p},${i})">${c}</td>`});
-const tt=totalHours(r.grid,info),nb=normEmp(r,info),sp=+r.sup||0,df=tt-(nb+sp),red=tt<nb||df<0;h+=`<td><b style="${tt<nb?'color:red':''}">${tt}</b></td><td>${nb}</td><td><input class="sm" type="number" value="${sp}" onchange="M()[${p}].sup=+this.value;save();render()"></td><td style="${red?'color:red;font-weight:bold':''}">${df>0?'+':''}${df}${tt<nb?' ⚠':''}</td><td class="noprint"><button onclick="delEmp(${p})">✕</button></td></tr>`});
+const tt=totalHours(r.grid,info),nb=normEmp(r,info),fl=isFullLeave(r.grid,info),sp=fl?0:(+r.sup||0),df=tt-(nb+sp),red=tt<nb||df<0;h+=`<td><b style="${tt<nb?'color:red':''}">${tt}</b></td><td>${nb}</td><td>${fl?'<small>concediu toată luna</small>':`<input class="sm" type="number" value="${sp}" onchange="M()[${p}].sup=+this.value;save();render()">`}</td><td style="${red?'color:red;font-weight:bold':''}">${df>0?'+':''}${df}${tt<nb?' ⚠':''}</td><td class="noprint"><button onclick="delEmp(${p})">✕</button></td></tr>`});
 h+='<tr><td class=hid></td><td class=hid></td><td class=st>Noapte/zi</td>'+info.days.map((d,i)=>{const n=S.emps.filter((_,p)=>o[p].grid[i]=='N').length,z=S.emps.filter((_,p)=>o[p].grid[i]=='Z').length;return `<td class="${d.work?'':'we'}" style="font-size:10px;${n!=2||z<1?'color:red':''}">${n}/${z}</td>`}).join('')+'<td colspan=5></td></tr></table>';
 document.getElementById('grid').innerHTML=h}
 function clk(ev,p,i){if(rmode){if(rstart&&rstart.p==p){sel={p,a:rstart.a,b:i};rstart=null}else{rstart={p,a:i};sel={p,a:i,b:i}}}else if(ev.shiftKey&&sel&&sel.p==p)sel.b=i;else sel={p,a:i,b:i};render()}
@@ -107,7 +109,7 @@ function golire(){if(confirm('Ștergi programul lunii?')){delete S.months[key()]
 function addEmp(){S.emps.push({nr:'',nume:'Angajat nou'});save();render()}
 function delEmp(p){if(!confirm('Ștergi '+S.emps[p].nume+'?'))return;S.emps.splice(p,1);for(const k in S.months){const o=S.months[k],n={};Object.keys(o).forEach(q=>{q=+q;if(q<p)n[q]=o[q];else if(q>p)n[q-1]=o[q]});S.months[k]=n}save();render()}
 function exportX(){const y=+yr.value,m=+mo.value,info=monthInfo(y,m),o=M();const rows=[[`PROGRAM DE LUCRU ${LUNI[m-1]} ${y} — normă ${info.norma} ore`],['Nr.crt','Nr. matricol','Nume și prenume',...info.days.map(d=>d.d),'Total ore','Ore suplimentare']];
-S.emps.forEach((e,p)=>rows.push([p+1,e.nr,e.nume,...info.days.map((_,i)=>o[p].grid[i]||''),totalHours(o[p].grid,info),o[p].sup||0]));const f=`program_${y}_${String(m).padStart(2,'0')}`;
+S.emps.forEach((e,p)=>rows.push([p+1,e.nr,e.nume,...info.days.map((_,i)=>o[p].grid[i]||''),totalHours(o[p].grid,info),isFullLeave(o[p].grid,info)?0:(o[p].sup||0)]));const f=`program_${y}_${String(m).padStart(2,'0')}`;
 if(window.XLSX){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Program');XLSX.writeFile(wb,f+'.xlsx')}
 else{const csv='\ufeff'+rows.map(r=>r.map(v=>`"${v}"`).join(';')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=f+'.csv';a.click()}}
 let pp=0;const dlg=document.getElementById('dlg'),$=id=>document.getElementById(id);
