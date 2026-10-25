@@ -1,0 +1,82 @@
+<!DOCTYPE html><html lang="ro"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Program de lucru</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>body{font-family:Arial,sans-serif;font-size:13px;margin:10px}table{border-collapse:collapse}td,th{border:1px solid #444;padding:2px;text-align:center;min-width:22px}
+th.we,td.we{background:#bcd7f5}td.cell{cursor:pointer;user-select:none}td.sel{outline:2px solid red}td.lock{font-weight:bold;text-decoration:underline}
+.N{color:#1a237e}.CO{background:#c8e6c9!important}.CB{background:#ffcdd2!important}input.nm{width:150px}input.sm{width:50px}#warn{color:#b00}.bar>*{margin-right:6px}
+#grid{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+th.st,td.st{position:sticky;left:0;background:#fff;z-index:2}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}button,select{min-height:36px;font-size:14px}
+@media (max-width:800px){body{margin:4px;font-size:14px}td.cell{min-width:34px;height:34px;font-size:13px}input.nm{width:110px}td.hid,th.hid{display:none}button{flex:1 1 40%}}
+#rm.on{background:#ffeb3b}
+@media print{#grid{overflow:visible}th.st,td.st{position:static}td.hid,th.hid{display:table-cell!important}.noprint{display:none}@page{size:A4 landscape;margin:8mm}body{font-size:9px}input{border:none}td,th{min-width:14px}}</style></head><body>
+<div class="bar noprint">Luna: <select id="mo"></select> An: <input id="yr" type="number" class="sm" style="width:70px">
+<button onclick="genereaza()">Generează program</button><button onclick="addEmp()">+ Angajat</button>
+<button onclick="exportX()">Export Excel</button><button onclick="window.print()">Printează / PDF</button><button onclick="golire()">Golește luna</button></div>
+<div class="bar noprint" style="margin:6px 0">Cod pentru selecție: <select id="code"><option>Z</option><option>N</option><option>CO</option><option>CB</option><option value="">(gol)</option></select>
+<button id="rm" onclick="rmode=!rmode;rstart=null;this.classList.toggle('on',rmode)">Mod selecție interval</button><button onclick="applySel()">Aplică pe selecție</button><button onclick="lockSel(true)">Blochează</button><button onclick="lockSel(false)">Deblochează</button>
+<small>Click = alege celula, Shift+click sau „Mod selecție interval” (atinge începutul, apoi sfârșitul) = interval pe același rând. Celulele blocate (subliniate) și CO/CB rămân neschimbate la generare.</small></div>
+<h3 id="title"></h3><div id="norma"></div><div id="grid"></div><div id="warn"></div>
+<p><small>Ipoteze: Z (zi) și N (noapte) = 12 ore. CO/CB = 8 ore doar în zilele lucrătoare (luni–vineri, fără sărbători legale). Normă = zile lucrătoare × 8h; pentru cei cu CO/CB, ținta generatorului scade cu 8h pe fiecare zi lucrătoare de concediu. După tura de noapte persoana nu lucrează a doua zi (odihnă 24/48h). Generator: mereu 2 pe noapte, 1 pe zi (2 când e nevoie pentru a atinge norma).</small></p>
+<script>
+// ==CORE==
+function easterOrthodox(y){const a=y%4,b=y%7,c=y%19,d=(19*c+15)%30,e=(2*a+4*b-d+34)%7;const m=Math.floor((d+e+114)/31),day=((d+e+114)%31)+1;const j=new Date(Date.UTC(y,m-1,day));j.setUTCDate(j.getUTCDate()+13);return j;}
+function holidays(y){const k=(m,d)=>`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const s=new Set([k(1,1),k(1,2),k(1,6),k(1,7),k(1,24),k(5,1),k(6,1),k(8,15),k(11,30),k(12,1),k(12,25),k(12,26)]);
+const E=easterOrthodox(y);for(const off of [-2,0,1,49,50]){const t=new Date(E);t.setUTCDate(t.getUTCDate()+off);s.add(t.toISOString().slice(0,10));}return s;}
+function monthInfo(y,m){const n=new Date(y,m,0).getDate(),H=holidays(y),days=[];let wd=0;for(let d=1;d<=n;d++){const w=new Date(Date.UTC(y,m-1,d)).getUTCDay(),key=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const we=w==0||w==6,hol=H.has(key),work=!we&&!hol;if(work)wd++;days.push({d,we,hol,work});}return{n,days,workDays:wd,norma:wd*8};}
+function hoursOf(code,day){if(code==='Z'||code==='N')return 12;if((code==='CO'||code==='CB')&&day.work)return 8;return 0;}
+function totalHours(row,info){let t=0;for(let i=0;i<info.n;i++)t+=hoursOf(row[i]||'',info.days[i]);return t;}
+// emps: [{grid:[codes], locked:[bool]}]; returns {grids, warnings}
+function generate(emps,y,m){const info=monthInfo(y,m),n=info.n,W=[];
+ const g=emps.map(e=>{const r=[];for(let i=0;i<n;i++){const c=(e.grid&&e.grid[i])||'';r.push((e.locked&&e.locked[i])||c==='CO'||c==='CB'?c:'');}return r;});
+ const fixed=emps.map((e,p)=>g[p].map((c,i)=>!!((e.locked&&e.locked[i])||c==='CO'||c==='CB')));
+ const target=g.map(r=>{let t=info.norma;r.forEach((c,i)=>{if((c==='CO'||c==='CB')&&info.days[i].work)t-=8;});return t;});
+ const hrs=p=>totalHours(g[p],info);const last=g.map(()=>-9);
+ const ok=(p,i,s)=>{if(g[p][i])return false;const prev=i>0?g[p][i-1]:'';if(prev==='N')return false; // no shift right after night
+  if(s==='Z'&&i+1<n&&g[p][i+1]==='N'&&fixed[p][i+1]){} return true;};
+ const score=(p,i)=>{const rest=i-last[p];return (target[p]-hrs(p))+(rest>=3?6:rest==2?0:-30);};
+ for(let i=0;i<n;i++){
+  for(let p=0;p<g.length;p++)if(i>0&&g[p][i-1]&&g[p][i-1]!=='CO'&&g[p][i-1]!=='CB')last[p]=i-1;
+  // honor locked: drop ones conflicting? just count
+  let nN=g.filter(r=>r[i]==='N').length;
+  const pick=s=>{const c=g.map((_,p)=>p).filter(p=>ok(p,i,s)&&!(s==='Z'&&i+1<n&&fixed[p][i+1]&&g[p][i+1]==='N'&&false));c.sort((a,b)=>score(b,i)-score(a,i));return c[0];};
+  while(nN<2){const p=pick('N');if(p===undefined){W.push(`Ziua ${i+1}: nu sunt destui oameni pentru tura de noapte (${nN}/2).`);break;}g[p][i]='N';nN++;}
+  if(nN>2)W.push(`Ziua ${i+1}: ${nN} persoane pe noapte (blocate manual).`);
+  let nZ=g.filter(r=>r[i]==='Z').length;
+  if(nZ<1){const p=pick('Z');if(p===undefined)W.push(`Ziua ${i+1}: nimeni disponibil pentru tura de zi.`);else{g[p][i]='Z';nZ++;}}
+  if(nZ<2){const p=pick('Z');if(p!==undefined){const rem=n-i,need=target[p]-hrs(p);const totDef=g.reduce((s,_,q)=>s+Math.max(0,target[q]-hrs(q)),0),capLeft=(rem-1)*36;if(need>=12&&totDef>capLeft){g[p][i]='Z';nZ++;}}}
+ }
+ g.forEach((r,p)=>{for(let i=1;i<n;i++)if(r[i-1]==='N'&&r[i]==='Z')W.push(`Ang. ${p+1}: Z după N în ziua ${i+1} (blocat manual).`);
+  const d=totalHours(r,info)-target[p];if(Math.abs(d)>12)W.push(`Ang. ${p+1}: ${totalHours(r,info)}h față de normă ${target[p]}h (dif. ${d>0?'+':''}${d}h).`);});
+ return{grids:g,warnings:W,info,target};}
+if(typeof module!=='undefined')module.exports={easterOrthodox,holidays,monthInfo,generate,totalHours};
+// ==/CORE==
+const LUNI=['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'],ZS=['D','L','Ma','Mi','J','V','S'];
+let S=JSON.parse(localStorage.getItem('pontaj')||'null')||{emps:[['101','Popescu Andrei'],['102','Ionescu Mihai'],['103','Dumitru Vasile'],['104','Stan Gheorghe'],['105','Marin Florin'],['106','Radu Cristian'],['107','Toma Adrian'],['108','Enache Paul']].map(([nr,nume])=>({nr,nume})),months:{}};
+let sel=null,rmode=false,rstart=null;const save=()=>localStorage.setItem('pontaj',JSON.stringify(S));
+const mo=document.getElementById('mo'),yr=document.getElementById('yr');LUNI.forEach((l,i)=>mo.add(new Option(l,i+1)));const now=new Date();mo.value=now.getMonth()+1;yr.value=now.getFullYear();mo.onchange=yr.onchange=render;
+function key(){return yr.value+'-'+mo.value}
+function M(){const k=key();S.months[k]=S.months[k]||{};const o=S.months[k];S.emps.forEach((e,p)=>{o[p]=o[p]||{grid:[],locked:[],sup:0}});return o}
+function render(){const y=+yr.value,m=+mo.value,info=monthInfo(y,m),o=M();
+document.getElementById('title').textContent=`PROGRAM DE LUCRU — ${LUNI[m-1].toUpperCase()} ${y}`;
+document.getElementById('norma').innerHTML=`Zile lucrătoare: <b>${info.workDays}</b> × 8h = normă lunară <b>${info.norma} ore</b>`;
+let h='<table><tr><th class=hid>Nr.<br>crt</th><th class=hid>Nr. matricol</th><th class=st>Nume și prenume</th>'+info.days.map(d=>`<th class="${d.work?'':'we'}">${d.d}<br>${ZS[new Date(y,m-1,d.d).getDay()]}</th>`).join('')+'<th>Total ore</th><th>Ore supl.</th><th class="noprint"></th></tr>';
+S.emps.forEach((e,p)=>{const r=o[p];h+=`<tr><td class=hid>${p+1}</td><td class=hid><input class="sm" value="${e.nr}" onchange="S.emps[${p}].nr=this.value;save()"></td><td class=st><input class="nm" value="${e.nume}" onchange="S.emps[${p}].nume=this.value;save()"></td>`;
+info.days.forEach((d,i)=>{const c=r.grid[i]||'';const s=sel&&sel.p==p&&i>=Math.min(sel.a,sel.b)&&i<=Math.max(sel.a,sel.b);h+=`<td class="cell ${d.work?'':'we'} ${c} ${r.locked[i]?'lock':''} ${s?'sel':''}" onclick="clk(event,${p},${i})">${c}</td>`});
+h+=`<td><b>${totalHours(r.grid,info)}</b></td><td><input class="sm" type="number" value="${r.sup||0}" onchange="M()[${p}].sup=+this.value;save()"></td><td class="noprint"><button onclick="delEmp(${p})">✕</button></td></tr>`});
+h+='<tr><td class=hid></td><td class=hid></td><td class=st>Noapte/zi</td>'+info.days.map((d,i)=>{const n=S.emps.filter((_,p)=>o[p].grid[i]=='N').length,z=S.emps.filter((_,p)=>o[p].grid[i]=='Z').length;return `<td class="${d.work?'':'we'}" style="font-size:10px;${n!=2||z<1?'color:red':''}">${n}/${z}</td>`}).join('')+'<td colspan=3></td></tr></table>';
+document.getElementById('grid').innerHTML=h}
+function clk(ev,p,i){if(rmode){if(rstart&&rstart.p==p){sel={p,a:rstart.a,b:i};rstart=null}else{rstart={p,a:i};sel={p,a:i,b:i}}}else if(ev.shiftKey&&sel&&sel.p==p)sel.b=i;else sel={p,a:i,b:i};render()}
+function rng(){return sel?[...Array(Math.abs(sel.b-sel.a)+1)].map((_,k)=>Math.min(sel.a,sel.b)+k):[]}
+function applySel(){if(!sel)return alert('Selectează celule');const c=document.getElementById('code').value,r=M()[sel.p];rng().forEach(i=>{r.grid[i]=c;r.locked[i]=!!c});save();render()}
+function lockSel(v){if(!sel)return;const r=M()[sel.p];rng().forEach(i=>r.locked[i]=v);save();render()}
+function genereaza(){const o=M(),res=generate(S.emps.map((_,p)=>o[p]),+yr.value,+mo.value);res.grids.forEach((g,p)=>o[p].grid=g);save();render();
+document.getElementById('warn').innerHTML=res.warnings.length?'<b>Atenționări:</b><br>'+res.warnings.map(w=>w.replace(/Ang\. (\d+)/,(_,n)=>S.emps[n-1].nume)).join('<br>'):'Program generat fără probleme.'}
+function golire(){if(confirm('Ștergi programul lunii?')){delete S.months[key()];save();render()}}
+function addEmp(){S.emps.push({nr:'',nume:'Angajat nou'});save();render()}
+function delEmp(p){if(!confirm('Ștergi '+S.emps[p].nume+'?'))return;S.emps.splice(p,1);for(const k in S.months){const o=S.months[k],n={};Object.keys(o).forEach(q=>{q=+q;if(q<p)n[q]=o[q];else if(q>p)n[q-1]=o[q]});S.months[k]=n}save();render()}
+function exportX(){const y=+yr.value,m=+mo.value,info=monthInfo(y,m),o=M();const rows=[[`PROGRAM DE LUCRU ${LUNI[m-1]} ${y} — normă ${info.norma} ore`],['Nr.crt','Nr. matricol','Nume și prenume',...info.days.map(d=>d.d),'Total ore','Ore suplimentare']];
+S.emps.forEach((e,p)=>rows.push([p+1,e.nr,e.nume,...info.days.map((_,i)=>o[p].grid[i]||''),totalHours(o[p].grid,info),o[p].sup||0]));const f=`program_${y}_${String(m).padStart(2,'0')}`;
+if(window.XLSX){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Program');XLSX.writeFile(wb,f+'.xlsx')}
+else{const csv='\ufeff'+rows.map(r=>r.map(v=>`"${v}"`).join(';')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=f+'.csv';a.click()}}
+render();
+</script></body></html>
